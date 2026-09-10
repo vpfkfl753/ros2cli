@@ -51,3 +51,31 @@ def test_get_interface_lines_matches_full_name(
     else:
         with pytest.raises(LookupError, match='not found in package'):
             list(_get_interface_lines(identifier))
+
+
+@pytest.mark.parametrize('interface_kind', ['msg', 'srv', 'action'])
+@pytest.mark.parametrize('canonical_index', [0, 1, 2])
+def test_get_interface_lines_prefers_canonical_path(
+    tmp_path, monkeypatch, interface_kind, canonical_index
+):
+    package_name = 'test_interfaces'
+    resource_index = tmp_path / 'share' / 'ament_index' / 'resource_index'
+    for resource_type in ('packages', 'rosidl_interfaces'):
+        (resource_index / resource_type).mkdir(parents=True)
+    (resource_index / 'packages' / package_name).write_text('')
+
+    canonical_path = f'{interface_kind}/Foo.{interface_kind}'
+    paths = [f'nested/{canonical_path}', f'other/{canonical_path}']
+    paths.insert(canonical_index, canonical_path)
+    separators = {'msg': 0, 'srv': 1, 'action': 2}[interface_kind]
+    for relative_path in paths:
+        path = tmp_path / 'share' / package_name / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        definition = 'int32 value' if relative_path == canonical_path else 'bool wrong'
+        path.write_text(definition + '\n' + '---\n' * separators)
+    (resource_index / 'rosidl_interfaces' / package_name).write_text('\n'.join(paths))
+    monkeypatch.setenv('AMENT_PREFIX_PATH', str(tmp_path))
+
+    expected = ['int32 value'] + ['---'] * separators
+    identifier = f'{package_name}/{interface_kind}/Foo'
+    assert [str(line) for line in _get_interface_lines(identifier)] == expected

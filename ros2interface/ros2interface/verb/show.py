@@ -124,13 +124,16 @@ def _get_interface_lines(interface_identifier: str) -> typing.Iterable[Interface
     interfaces, _ = get_resource('rosidl_interfaces', pkg_name)
     interfaces = interfaces.splitlines()
 
-    interface = [f for f in interfaces if os.path.basename(f) == msg_name + '.' + msg_type]
-    if len(interface) == 0:
-        raise LookupError(
-            f"Interface '{msg_type}/{msg_name}' not found in package '{pkg_name}'"
-        )
+    interface_path = f'{msg_type}/{msg_name}.{msg_type}'
+    if interface_path not in interfaces:
+        matches = [f for f in interfaces if os.path.basename(f) == msg_name + '.' + msg_type]
+        if not matches:
+            raise LookupError(
+                f"Interface '{msg_type}/{msg_name}' not found in package '{pkg_name}'"
+            )
+        interface_path = matches[0]
 
-    file_path = os.path.join(share_dir, interface[0])
+    file_path = os.path.join(share_dir, interface_path)
     with open(file_path) as file_handler:
         for line in file_handler:
             yield InterfaceTextLine(
